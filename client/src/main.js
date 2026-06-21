@@ -74,7 +74,7 @@ ui.btnCreate.addEventListener('click', async () => {
     };
 
     pcManager.onDataChannelMessage = (data) => {
-      const text = new TextDecoder().decode(data);
+      const text = typeof data === 'string' ? data : new TextDecoder().decode(data);
       log(`Received: ${text}`);
     };
   });
@@ -112,7 +112,7 @@ ui.btnJoin.addEventListener('click', async () => {
     };
 
     pcManager.onDataChannelMessage = (data) => {
-      const text = new TextDecoder().decode(data);
+      const text = typeof data === 'string' ? data : new TextDecoder().decode(data);
       log(`Received: ${text}`);
     };
   });
@@ -125,9 +125,9 @@ ui.btnJoin.addEventListener('click', async () => {
 });
 
 ui.btnSend.addEventListener('click', () => {
-  if (!pcManager) return;
-  const text = ui.msgInput.value;
-  if (!text) return;
+  if (!pcManager) { log('Send failed: no connection'); return; }
+  const text = ui.msgInput.value.trim();
+  if (!text) { log('Send failed: type a message first'); return; }
 
   const data = new TextEncoder().encode(text);
   try {
