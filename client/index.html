@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>P2P Phase 2 Dev Harness</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    button { margin: 5px 0; padding: 8px 16px; }
+    .status { margin-bottom: 20px; padding: 10px; background: #f0f0f0; border-radius: 4px; }
+    .log { height: 200px; overflow-y: auto; background: #eee; padding: 10px; font-family: monospace; white-space: pre-wrap; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <h1>P2P WebRTC Harness</h1>
+  
+  <div class="status">
+    <strong>Connection State:</strong> <span id="stateDisplay">idle</span>
+  </div>
+
+  <div id="setupView">
+    <button id="btnCreate">Create Session (Sender)</button>
+    <br/><br/>
+    <input type="text" id="inputCode" placeholder="Enter 6-char code" />
+    <button id="btnJoin">Join Session (Receiver)</button>
+  </div>
+
+  <div id="transferView" class="hidden">
+    <h3>Session Code: <span id="displayCode"></span></h3>
+    <input type="text" id="msgInput" placeholder="Message to send" />
+    <button id="btnSend">Send via DataChannel</button>
+    <button id="btnDisconnect">Disconnect</button>
+  </div>
+
+  <h3>Log</h3>
+  <div class="log" id="logBox"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

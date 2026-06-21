@@ -4,10 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "echo 'server dev'",
+    "dev": "node --watch src/index.js",
     "test": "vitest run"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "nanoid": "^3.3.14",
     "shared": "*",
