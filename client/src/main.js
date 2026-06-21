@@ -3,8 +3,8 @@ import { PeerConnectionManager } from './lib/peerConnection.js';
 import { fetchIceConfig } from './lib/iceConfig.js';
 import { SIGNALING_TYPES } from 'shared/src/signaling-messages.js';
 
-const SIGNALING_URL = 'ws://localhost:3001';
-const ICE_CONFIG_URL = 'http://localhost:3001/ice-config';
+const SIGNALING_URL = import.meta.env.VITE_WS_URL || 'wss://p2p-share-server-vbhp.onrender.com';
+const ICE_CONFIG_URL = import.meta.env.VITE_ICE_CONFIG_URL || 'https://p2p-share-server-vbhp.onrender.com/ice-config';
 
 const ui = {
   stateDisplay: document.getElementById('stateDisplay'),

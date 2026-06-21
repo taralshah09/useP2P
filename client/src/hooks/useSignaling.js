@@ -3,8 +3,8 @@ import { SignalingClient } from '../lib/signalingClient.js';
 import { SIGNALING_TYPES } from 'shared/src/signaling-messages.js';
 import { fetchIceConfig } from '../lib/iceConfig.js';
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
-const ICE_CONFIG_URL = import.meta.env.VITE_ICE_CONFIG_URL || 'http://localhost:3001/ice-config';
+const WS_URL = import.meta.env.VITE_WS_URL || 'wss://p2p-share-server-vbhp.onrender.com';
+const ICE_CONFIG_URL = import.meta.env.VITE_ICE_CONFIG_URL || 'https://p2p-share-server-vbhp.onrender.com/ice-config';
 
 export function useSignaling() {
   const [status, setStatus] = useState('idle'); // idle | connecting | connected | disconnected | error
