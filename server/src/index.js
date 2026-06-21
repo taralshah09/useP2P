@@ -9,7 +9,11 @@ dotenv.config();
 
 const app = express();
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  const allowed = config.allowedOrigins;
+  if (allowed.includes('*') || (origin && allowed.includes(origin))) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  }
   next();
 });
 const server = http.createServer(app);
@@ -35,8 +39,9 @@ app.get('/ice-config', async (req, res) => {
   }
 
   try {
+    const meteredApp = process.env.METERED_APP_NAME || 'p2p-share';
     const r = await fetch(
-      `https://p2p-share.metered.live/api/v1/turn/credentials?apiKey=${apiKey}`
+      `https://${meteredApp}.metered.live/api/v1/turn/credentials?apiKey=${apiKey}`
     );
     if (!r.ok) throw new Error(`Metered API ${r.status}`);
     const turnServers = await r.json();
