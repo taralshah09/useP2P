@@ -1,3 +1,6 @@
+
+https://github.com/user-attachments/assets/0d311ee0-5741-4f8a-9428-5cc759c8929b
+
 # P2P — QR File Sharing
 
 **Send a file from your phone to your laptop (or any device to any device) directly, over an encrypted peer-to-peer connection. No account, no upload, no copy left on a server.**
