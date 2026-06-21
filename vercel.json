@@ -1,5 +1,5 @@
 {
   "buildCommand": "npm run build -w client",
-  "outputDirectory": "client/dist",
+  "outputDirectory": "dist",
   "installCommand": "npm install --legacy-peer-deps"
 }
