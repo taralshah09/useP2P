@@ -5,6 +5,7 @@ import { usePeerConnection } from '../hooks/usePeerConnection.js';
 import { useFileReceiver } from '../hooks/useFileReceiver.js';
 import { CONNECTION_STATES } from '../lib/connectionState.js';
 import { supportsFileSystemAccessAPI } from '../lib/capabilities.js';
+import { copyToClipboard } from '../lib/clipboard.js';
 import AccessCodeEntry from '../components/AccessCodeEntry.jsx';
 import TransferProgress from '../components/TransferProgress.jsx';
 const QRScanner = lazy(() => import('../components/QRScanner.jsx'));
@@ -32,6 +33,7 @@ export default function ReceiverPage() {
   const [uiStep, setUiStep] = useState(urlCode ? 'connecting' : 'idle');
   const [uiError, setUiError] = useState(null);
   const [showScanner, setShowScanner] = useState(false);
+  const [copyStatus, setCopyStatus] = useState(null); // null | 'copied' | 'failed'
 
   const { sessionCode, iceConfig, getClient, joinSession } = useSignaling();
   const { connState, connError, init, getManager } = usePeerConnection();
@@ -41,8 +43,15 @@ export default function ReceiverPage() {
     result,
     receiveError,
     fileInfo,
+    receivedText,
     init: initReceiver,
   } = useFileReceiver();
+
+  async function handleCopy() {
+    const ok = await copyToClipboard(receivedText ?? '');
+    setCopyStatus(ok ? 'copied' : 'failed');
+    if (ok) setTimeout(() => setCopyStatus(null), 2000);
+  }
 
   // Auto-connect when URL has a code (QR scan deep-link)
   useEffect(() => {
@@ -70,6 +79,7 @@ export default function ReceiverPage() {
   useEffect(() => {
     if (receiveState === 'receiving') setUiStep('receiving');
     else if (receiveState === 'complete') setUiStep('complete');
+    else if (receiveState === 'text') setUiStep('text');
     else if (receiveState === 'error') {
       setUiStep('error');
       setUiError(receiveError);
@@ -117,7 +127,7 @@ export default function ReceiverPage() {
         >
           ← Back
         </button>
-        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Receive a File</h2>
+        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Receive</h2>
       </div>
 
       {!supportsFileSystemAccessAPI() && (
@@ -194,6 +204,47 @@ export default function ReceiverPage() {
             totalBytes={progress.totalBytes}
             label="Download progress"
           />
+        </div>
+      )}
+
+      {uiStep === 'text' && (
+        <div>
+          <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📋</div>
+            <h3 style={{ margin: 0 }}>Text Received</h3>
+          </div>
+          <textarea
+            className="input"
+            value={receivedText ?? ''}
+            readOnly
+            rows={8}
+            style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
+            onFocus={(e) => e.target.select()}
+          />
+          <button
+            className="btn btn-primary w-full"
+            onClick={handleCopy}
+            style={{ marginTop: '0.75rem', width: '100%' }}
+          >
+            Copy to clipboard
+          </button>
+          {copyStatus === 'copied' && (
+            <div className="alert alert-info" style={{ marginTop: '0.75rem', textAlign: 'center' }}>
+              ✅ Copied to your clipboard
+            </div>
+          )}
+          {copyStatus === 'failed' && (
+            <div className="alert alert-error" style={{ marginTop: '0.75rem', textAlign: 'center' }}>
+              Couldn't copy automatically — select the text above and copy it manually.
+            </div>
+          )}
+          <button
+            className="btn btn-secondary w-full"
+            onClick={() => navigate('/')}
+            style={{ marginTop: '0.75rem', width: '100%' }}
+          >
+            Done
+          </button>
         </div>
       )}
 

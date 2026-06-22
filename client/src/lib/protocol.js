@@ -3,7 +3,12 @@ export const HEADER_SIZE = 38; // 2 (fileIndex) + 4 (chunkIndex) + 32 (sha256)
 export const CONTROL_MESSAGES = {
   FILE_METADATA: 'FILE_METADATA',
   TRANSFER_COMPLETE: 'TRANSFER_COMPLETE',
-  ERROR: 'ERROR'
+  ERROR: 'ERROR',
+  // Phase 6 — text sharing. Both are low-frequency JSON control messages
+  // (never binary chunk frames). TEXT_MESSAGE carries the whole snippet;
+  // TEXT_RECEIVED is the receiver's delivery ack back to the sender.
+  TEXT_MESSAGE: 'TEXT_MESSAGE',
+  TEXT_RECEIVED: 'TEXT_RECEIVED'
 };
 
 /**

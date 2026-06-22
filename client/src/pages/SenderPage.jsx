@@ -1,9 +1,12 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSignaling } from '../hooks/useSignaling.js';
 import { usePeerConnection } from '../hooks/usePeerConnection.js';
 import { useFileTransfer } from '../hooks/useFileTransfer.js';
+import { useTextTransfer } from '../hooks/useTextTransfer.js';
 import { CONNECTION_STATES } from '../lib/connectionState.js';
+import { textByteLength } from '../lib/textTransfer.js';
+import { MAX_TEXT_BYTES } from 'shared/src/constants.js';
 import FilePicker from '../components/FilePicker.jsx';
 import QRDisplay from '../components/QRDisplay.jsx';
 import TransferProgress from '../components/TransferProgress.jsx';
@@ -18,7 +21,9 @@ function formatBytes(bytes) {
 
 export default function SenderPage() {
   const navigate = useNavigate();
+  const [mode, setMode] = useState('file'); // file | text
   const [file, setFile] = useState(null);
+  const [text, setText] = useState('');
   const [uiStep, setUiStep] = useState('idle');
   const [uiError, setUiError] = useState(null);
   const wakeLockRef = useRef(null);
@@ -26,6 +31,11 @@ export default function SenderPage() {
   const { sessionCode, iceConfig, getClient, createSession } = useSignaling();
   const { connState, connError, init, getManager } = usePeerConnection();
   const { progress, startTransfer } = useFileTransfer();
+  const { delivered, startTextTransfer } = useTextTransfer();
+
+  const textBytes = textByteLength(text);
+  const textTooLarge = textBytes > MAX_TEXT_BYTES;
+  const canSend = mode === 'file' ? !!file : text.trim().length > 0 && !textTooLarge;
 
   // Sync connState to uiStep
   useEffect(() => {
@@ -44,7 +54,7 @@ export default function SenderPage() {
     }
   }, [connState, connError]);
 
-  // Wake lock management
+  // Wake lock management (only meaningful for file transfers, harmless for text)
   useEffect(() => {
     if (uiStep === 'transferring' && 'wakeLock' in navigator) {
       navigator.wakeLock.request('screen').then((lock) => {
@@ -80,9 +90,13 @@ export default function SenderPage() {
 
   async function handleApprove() {
     const manager = getManager();
-    if (!file || !manager) return;
+    if (!manager || !canSend) return;
     try {
-      await startTransfer(file, manager);
+      if (mode === 'text') {
+        await startTextTransfer(text, manager);
+      } else {
+        await startTransfer(file, manager);
+      }
     } catch (err) {
       setUiStep('error');
       setUiError(err.message);
@@ -98,6 +112,57 @@ export default function SenderPage() {
     ? `${window.location.origin}/join/${sessionCode}`
     : '';
 
+  // Shared sub-renders ──────────────────────────────────────────────
+
+  function renderModeToggle() {
+    return (
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+        <button
+          className={`btn ${mode === 'file' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setMode('file')}
+          style={{ flex: 1 }}
+        >
+          Send a file
+        </button>
+        <button
+          className={`btn ${mode === 'text' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setMode('text')}
+          style={{ flex: 1 }}
+        >
+          Send text
+        </button>
+      </div>
+    );
+  }
+
+  function renderPayloadInput() {
+    if (mode === 'file') {
+      return <FilePicker file={file} onFileSelect={setFile} disabled={false} />;
+    }
+    return (
+      <div>
+        <textarea
+          className="input"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Paste or type the text to share…"
+          rows={6}
+          style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
+        />
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: '0.8rem',
+          color: textTooLarge ? '#dc2626' : '#9ca3af',
+          marginTop: '0.25rem',
+        }}>
+          <span>{textTooLarge ? 'Too large — send it as a file instead.' : ''}</span>
+          <span>{formatBytes(textBytes)} / {formatBytes(MAX_TEXT_BYTES)}</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="card">
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
@@ -108,12 +173,13 @@ export default function SenderPage() {
         >
           Back
         </button>
-        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Send a File</h2>
+        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Send</h2>
       </div>
 
       {uiStep === 'idle' && (
         <div>
-          <FilePicker file={file} onFileSelect={setFile} disabled={false} />
+          {renderModeToggle()}
+          {renderPayloadInput()}
           <button
             className="btn btn-primary w-full"
             onClick={handleStart}
@@ -142,9 +208,10 @@ export default function SenderPage() {
           <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '1.5rem 0' }} />
           <div>
             <div style={{ fontSize: '0.875rem', color: '#666', marginBottom: '0.5rem' }}>
-              {file ? 'Ready to send:' : 'Select a file to send while you wait:'}
+              {canSend ? 'Ready to send:' : 'Prepare what to send while you wait:'}
             </div>
-            <FilePicker file={file} onFileSelect={setFile} disabled={false} />
+            {renderModeToggle()}
+            {renderPayloadInput()}
           </div>
           <div className="alert alert-warning" style={{ marginTop: '1rem' }}>
             Waiting for receiver to connect...
@@ -159,81 +226,86 @@ export default function SenderPage() {
             <h3 style={{ margin: '0 0 0.25rem' }}>Receiver Connected</h3>
             <p style={{ color: '#666', margin: 0 }}>A receiver has joined your session.</p>
           </div>
-          {!file ? (
-            <div>
-              <div style={{ fontSize: '0.875rem', color: '#666', marginBottom: '0.5rem' }}>
-                Select a file to send:
-              </div>
-              <FilePicker file={file} onFileSelect={setFile} disabled={false} />
-              <button
-                className="btn btn-primary"
-                style={{ marginTop: '1rem', width: '100%' }}
-                disabled
-              >
-                Accept and Send (select a file first)
-              </button>
+
+          {renderModeToggle()}
+          {renderPayloadInput()}
+
+          {mode === 'file' && file && (
+            <div style={{
+              background: '#f0f9ff',
+              border: '1px solid #bae6fd',
+              borderRadius: '8px',
+              padding: '1rem',
+              margin: '1rem 0',
+            }}>
+              <div style={{ fontWeight: 600 }}>{file.name}</div>
+              <div style={{ color: '#666', fontSize: '0.875rem' }}>{formatBytes(file.size)}</div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+            <button
+              className="btn btn-success"
+              onClick={handleApprove}
+              disabled={!canSend}
+              style={{ flexGrow: 1 }}
+            >
+              {canSend
+                ? `Accept and Send ${mode === 'text' ? 'text' : 'file'}`
+                : `Accept and Send (${mode === 'text' ? 'enter text first' : 'select a file first'})`}
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={handleReject}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              Reject
+            </button>
+          </div>
+        </div>
+      )}
+
+      {uiStep === 'transferring' && (
+        <div>
+          {mode === 'text' ? (
+            <div className="text-center">
+              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Sending...</div>
+              <h3 style={{ margin: 0 }}>Sending text</h3>
             </div>
           ) : (
             <div>
-              <div style={{
-                background: '#f0f9ff',
-                border: '1px solid #bae6fd',
-                borderRadius: '8px',
-                padding: '1rem',
-                marginBottom: '1rem',
-              }}>
-                <div style={{ fontWeight: 600 }}>{file.name}</div>
-                <div style={{ color: '#666', fontSize: '0.875rem' }}>{formatBytes(file.size)}</div>
+              <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Sending...</div>
+                <h3 style={{ margin: 0 }}>Sending {file?.name}</h3>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  className="btn btn-success"
-                  onClick={handleApprove}
-                  style={{ flexGrow: 1 }}
-                >
-                  Accept and Send
-                </button>
-                <button
-                  className="btn btn-secondary"
-                  onClick={handleReject}
-                  style={{ whiteSpace: 'nowrap' }}
-                >
-                  Reject
-                </button>
+              <TransferProgress
+                sentBytes={progress.sentBytes}
+                totalBytes={progress.totalBytes || file?.size}
+                label="Transfer progress"
+              />
+              <div className="alert alert-warning" style={{ marginTop: '1rem' }}>
+                Keep this tab open until the transfer finishes.
               </div>
             </div>
           )}
         </div>
       )}
 
-      {uiStep === 'transferring' && (
-        <div>
-          <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Sending...</div>
-            <h3 style={{ margin: 0 }}>Sending {file?.name}</h3>
-          </div>
-          <TransferProgress
-            sentBytes={progress.sentBytes}
-            totalBytes={progress.totalBytes || file?.size}
-            label="Transfer progress"
-          />
-          <div className="alert alert-warning" style={{ marginTop: '1rem' }}>
-            Keep this tab open until the transfer finishes.
-          </div>
-        </div>
-      )}
-
       {uiStep === 'complete' && (
         <div className="text-center">
           <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>Done!</div>
-          <h3>Transfer Complete</h3>
-          <p style={{ color: '#666' }}>{file?.name} was sent successfully.</p>
+          <h3>{mode === 'text' ? 'Text Sent' : 'Transfer Complete'}</h3>
+          <p style={{ color: '#666' }}>
+            {mode === 'text'
+              ? (delivered ? 'The receiver has your text.' : 'Your text was sent.')
+              : `${file?.name} was sent successfully.`}
+          </p>
           <button
             className="btn btn-primary"
             onClick={() => navigate('/')}
             style={{ marginTop: '0.5rem' }}
           >
-            Send Another File
+            {mode === 'text' ? 'Send Something Else' : 'Send Another File'}
           </button>
         </div>
       )}
