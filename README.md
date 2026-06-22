@@ -31,6 +31,7 @@ https://github.com/user-attachments/assets/0d311ee0-5741-4f8a-9428-5cc759c8929b
     - **The server never touches your file.** It's a *signaling* server only: it brokers the WebRTC handshake (SDP + ICE) and then steps out of the way.
     - **Ephemeral by design.** Sessions are in-memory, two-party, and expire on a TTL. No accounts, no database, no persistence, no analytics.
     - **QR-first.** Built for the phone-to-laptop case — scan and go.
+    - **Files _and_ text.** Same session, a simple toggle: send a file, or send a text snippet (a link, a Wi-Fi password, a code block). Text arrives with a one-tap **Copy to clipboard** button on the receiver.
     - **Works across networks.** STUN for NAT traversal, with a TURN relay fallback for the hard cases (symmetric NATs on mobile carriers, corporate Wi-Fi). Even when relayed, bytes stay DTLS-encrypted end to end.
     - **Integrity-checked.** Each chunk is SHA-256 hashed inline, and a Merkle-style root of the chunk hashes is compared at the end — so the received file is verified byte-for-byte without ever loading the whole thing into memory to hash it.
 
@@ -115,6 +116,12 @@ https://github.com/user-attachments/assets/0d311ee0-5741-4f8a-9428-5cc759c8929b
 
     Binary framing, hashing, and reassembly bugs are miserable to debug live across two browsers and a NAT. So the protocol, chunker, hasher, framing pack/unpack, and assembler are all **framework-agnostic pure modules** — unit-tested in Node with no DOM, no React, no network. The whole single-file engine is verified byte-for-byte through an in-memory channel stub before any of it touches a real connection.
 
+    ### 7. Text sharing fights the browser's clipboard rules, not the transport
+
+    Sharing text is trivial at the transport layer — it's just one small JSON control message over the *same* DataChannel (no chunking, capped at 64 KB; anything bigger is rejected with "send it as a file" rather than silently tearing down the channel). The real constraint is the **clipboard**: browsers block a programmatic `clipboard.writeText()` unless it happens inside a genuine user gesture, and iOS Safari is the strictest of all. A "text arrives → silently lands in your clipboard" flow gets blocked exactly where it matters most.
+
+    So the receiver always shows the text with a **one-tap Copy button**, and the actual write runs *inside* that click handler — which satisfies the gesture requirement on every target browser. The "Copied to clipboard" popup is gated on the write's real result (with an `execCommand` fallback for older browsers), so it never lies about a copy that didn't happen.
+
     > One-line summary: *keep the simple architecture, trust the reliable channel instead of reimplementing reliability, stream to disk instead of buffering twice, treat TURN and the approval gate as first-class, and keep the protocol pure so it can be tested without a browser.*
 
     ---
@@ -128,7 +135,7 @@ https://github.com/user-attachments/assets/0d311ee0-5741-4f8a-9428-5cc759c8929b
     ├── shared/
     │   └── src/
     │       ├── signaling-messages.js   # signaling message types + validators
-    │       └── constants.js            # code length, TTL, chunk size, watermarks
+    │       └── constants.js            # code length, TTL, chunk size, watermarks, max text size
     ├── server/
     │   └── src/
     │       ├── index.js                # Express + ws signaling server
@@ -142,12 +149,14 @@ https://github.com/user-attachments/assets/0d311ee0-5741-4f8a-9428-5cc759c8929b
             │   ├── hasher.js           #   per-chunk SHA-256 + Merkle root
             │   ├── sender.js           #   sender engine + flow control
             │   ├── receiver.js         #   receiver engine + stream-to-disk
+            │   ├── textTransfer.js     #   text send/parse (one TEXT_MESSAGE, size-capped)
+            │   ├── clipboard.js        #   gesture-safe copy-to-clipboard (+ fallback)
             │   ├── capabilities.js     #   File System Access detection
             │   ├── peerConnection.js   #   RTCPeerConnection lifecycle
             │   ├── signalingClient.js  #   WebSocket wrapper
             │   ├── connectionState.js  #   state machine
             │   └── iceConfig.js        #   STUN/TURN config fetch
-            ├── hooks/                  # thin React wrappers over lib/
+            ├── hooks/                  # thin React wrappers over lib/ (incl. useTextTransfer)
             ├── components/             # FilePicker, QRDisplay, AccessCodeEntry, TransferProgress
             └── pages/                  # Home, Sender, Receiver
     ```
@@ -182,6 +191,8 @@ https://github.com/user-attachments/assets/0d311ee0-5741-4f8a-9428-5cc759c8929b
     ## Status
 
     The single-file MVP is **complete and deployed end to end** — signaling server, WebRTC connection layer, transfer engine (chunker, hasher, sender, receiver, binary protocol), the full sender/receiver UI with QR and approval gate, and a live cross-network deployment with TURN relay.
+
+    **Text sharing** is also live — over the same session, a Send file / Send text toggle lets you send a snippet that the receiver copies to their clipboard with one tap.
 
     **Next:** multi-file sequential queue, then deferred work (resume-after-disconnect, short-authentication-string verification, unreliable-mode for raw speed).
 
